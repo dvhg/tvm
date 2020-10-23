@@ -841,6 +841,7 @@ def test_reshape():
 
 @tvm.testing.uses_gpu
 def test_where():
+    verify_where(())
     verify_where((1, 2, 3, 4))
 
 
