@@ -330,15 +330,11 @@ if __name__ == "__main__":
     test_robust_ordinal_encoder()
     test_na_label_encoder()
     test_kbins_discretizer()
-    # test_tfidf_vectorizer()
     test_pca()
     test_automl()
     test_feature_union()
     test_inverse_label_transformer()
-<<<<<<< HEAD
-=======
     test_log_extreme_values_transformer()
     test_quantile_transformer()
     test_quantile_extremevalues_transformer()
     test_date_time_vectorizer()
->>>>>>> ce987f574... Add Support For DateTimeVectorizer's Ordinal/Cyclic Transform (#188)

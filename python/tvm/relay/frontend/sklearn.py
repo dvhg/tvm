@@ -347,8 +347,6 @@ def _RobustPCA(op, inexpr, dshape, dtype, columns=None):
     return ret
 
 
-<<<<<<< HEAD
-=======
 def _qt_transform_col(X_col, quantiles, inverse, qt, references):
     """
     Column transformation for Quantile-type Transformers
@@ -568,7 +566,6 @@ def _DateTimeVectorizer(op, inexpr, dshape, dtype, columns=None):
     return ret
 
 
->>>>>>> ce987f574... Add Support For DateTimeVectorizer's Ordinal/Cyclic Transform (#188)
 _convert_map = {
     "ColumnTransformer": {"transform": _ColumnTransformer},
     "SimpleImputer": {"transform": _SimpleImputer},
