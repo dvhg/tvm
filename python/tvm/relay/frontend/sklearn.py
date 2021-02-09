@@ -347,6 +347,228 @@ def _RobustPCA(op, inexpr, dshape, dtype, columns=None):
     return ret
 
 
+<<<<<<< HEAD
+=======
+def _qt_transform_col(X_col, quantiles, inverse, qt, references):
+    """
+    Column transformation for Quantile-type Transformers
+    """
+    x_shape_n = _op.shape_of(X_col)
+
+    if not inverse:
+        lower_bound_x = _op.take(quantiles, indices=_expr.const(0))
+        upper_bound_x = _op.take(
+            quantiles,
+            indices=_op.subtract(_op.take(x_shape_n, indices=_expr.const([0])), _expr.const(1)),
+        )
+        lower_bound_y = _expr.const(0)
+        upper_bound_y = _expr.const(1)
+    else:
+        lower_bound_y = _op.take(quantiles, indices=_expr.const(0))
+        upper_bound_y = _op.take(quantiles, indices=_expr.const(1))
+        lower_bound_x = _expr.const(0)
+        upper_bound_x = _expr.const(1)
+
+    lower_bounds_idx = _op.equal(
+        _op.cast(X_col, "float32"), _op.broadcast_to(lower_bound_x, x_shape_n)
+    )
+    upper_bounds_idx = _op.equal(
+        _op.cast(X_col, "float32"), _op.broadcast_to(upper_bound_x, x_shape_n)
+    )
+
+    isfinite_mask = _op.logical_not(_op.isnan(X_col))
+
+    X_col_finite = _op.reshape(
+        _op.multiply(X_col, _op.cast(isfinite_mask, "float32")), newshape=(-1)
+    )
+
+    if not inverse:
+        interp1 = _op.interpolate(
+            X_col_finite,
+            _op.reshape(quantiles, qt.quantiles_.shape[0]),
+            _op.cast(references, "float32"),
+        )
+
+        interp2 = _op.interpolate(
+            _op.negative(X_col_finite),
+            _op.reverse(_op.negative(_op.reshape(quantiles, qt.quantiles_.shape[0])), axis=0),
+            _op.reverse(_op.negative(_op.cast(references, "float32")), axis=0),
+        )
+
+        mul1 = _op.subtract(interp1, interp2)
+        mul_out = _op.multiply(_op.cast(_expr.const(0.5), "float"), _op.cast(mul1, "float"))
+    else:
+        interp_out = _op.interpolate(X_col_finite, qt.references_, quantiles)
+        mul_out = interp_out
+
+    out = _op.where(_op.reshape(isfinite_mask, newshape=(-1)), mul_out, X_col_finite)
+
+    upper_bound_y = _op.full(upper_bound_y, x_shape_n, dtype="float32")
+    out = _op.where(
+        _op.reshape(upper_bounds_idx, newshape=-(1)), _op.reshape(upper_bound_y, newshape=(-1)), out
+    )
+
+    lower_bound_y = _op.full(lower_bound_y, x_shape_n, dtype="float32")
+    out = _op.where(
+        _op.reshape(lower_bounds_idx, newshape=-(1)), _op.reshape(lower_bound_y, newshape=(-1)), out
+    )
+
+    return _op.reshape(out, newshape=(-1, 1))
+
+
+def _QuantileTransformer(op, inexpr, dshape, dtype, columns=None):
+    """
+    Scikit-Learn Transformer:
+    Transform features using quantiles information.
+    """
+    out = []
+    inverse = False
+    quantiles = op.quantiles_
+    features = quantiles.shape[1]
+
+    input_cols = _op.split(inexpr, features, axis=1)
+    q_cols = _op.split(_expr.const(quantiles), features, axis=1)
+
+    for feature_idx in range(features):
+        feature = _qt_transform_col(
+            input_cols[feature_idx],
+            q_cols[feature_idx],
+            inverse,
+            op,
+            _expr.const(op.references_),
+        )
+
+        out.append(feature)
+
+    return _op.reshape(_op.concatenate(out, 1), _op.shape_of(inexpr))
+
+
+def _QuantileExtremeValuesTransformer(op, inexpr, dshape, dtype, columns=None):
+    """
+    Sagemaker-Scikit-Learn-Extension Transformer:
+    Transform features that contain "extreme" values using quantiles information.
+    """
+    out = []
+    inverse = False
+
+    columns_to_transform = op.cols_to_transform_
+    quantiles = op.quantile_transformer_.quantiles_
+    features = quantiles.shape[1]
+
+    input_cols = _op.split(inexpr, features, axis=1)
+    q_cols = _op.split(_expr.const(quantiles), features, axis=1)
+
+    for feature_idx in range(features):
+        if feature_idx in columns_to_transform:
+            references = np.linspace(0, 1, quantiles.shape[0], endpoint=True)
+            feature = _qt_transform_col(
+                input_cols[feature_idx],
+                q_cols[feature_idx],
+                inverse,
+                op.quantile_transformer_,
+                _expr.const(tvm.nd.array(references)),
+            )
+        else:
+            feature = input_cols[feature_idx]
+
+        out.append(feature)
+
+    return _op.reshape(_op.concatenate(tuple(out), 1), _op.shape_of(inexpr))
+
+
+def _LogExtremeValuesTransformer(op, inexpr, dshape, dtype, columns=None):
+    """
+    Sagemaker-Scikit-Learn-Extension Transformer:
+    Stateful log transformer for columns that contain "extreme" values
+    """
+    n_features = dshape[1]
+    # if n_features != op.n_input_features_:
+    #         raise ValueError("X shape does not match training shape.")
+    out = []
+    cols = _op.split(inexpr, n_features, axis=1)
+    for j in range(n_features):
+        if j in op.cols_to_transform_:
+            if j in op.nonnegative_cols_:
+                out.append(_op.log(_op.add(cols[j], _op.const(1, dtype))))
+            else:
+                sign_col = _op.sign(cols[j])
+                out.append(
+                    _op.multiply(sign_col, _op.log(_op.add(_op.abs(cols[j]), _op.const(1, dtype))))
+                )
+        else:
+            out.append(cols[j])
+    ret = _op.reshape(_op.stack(out, axis=1), newshape=(-1, n_features))
+    return ret
+
+
+_date_time_func_index = {
+    "extract_weekday": 0,
+    "extract_year": 1,
+    "extract_hour": 2,
+    "extract_minute": 3,
+    "extract_second": 4,
+    "extract_month": 5,
+    "extract_week_of_year": 6,
+}
+
+
+def _cyclic_transform(data, low, high, dtype):
+    normalized = _op.multiply(_op.subtract(data, low), _op.const(2 * np.pi, dtype))
+    normalized = _op.divide(normalized, _op.add(_op.const(1, dtype), _op.subtract(high, low)))
+    sin_values = _op.sin(normalized)
+    cos_values = _op.cos(normalized)
+    return sin_values, cos_values
+
+
+def _DateTimeVectorizer(op, inexpr, dshape, dtype, columns=None):
+    """
+    Sagemaker-Scikit-Learn-Extension Transformer:
+    Converts array-like data with datetime.datetime or strings describing datetime objects into
+    numeric features
+    """
+    mins = []
+    maxs = []
+    cols = []
+    cols_without_year = []  # year is not eligible for ordinal/cyclic transform
+
+    for datetime_property in op.extract_:
+        extract_func = datetime_property.extract_func.__name__
+        cols.append(_date_time_func_index[extract_func])
+        if datetime_property.min is not None:
+            cols_without_year.append(_date_time_func_index[extract_func])
+            mins.append(datetime_property.min)
+            maxs.append(datetime_property.max)
+
+    mins = np.array(mins, dtype=np.float32)
+    maxs = np.array(maxs, dtype=np.float32)
+
+    data = _op.take(inexpr, _op.const(cols_without_year), axis=1)
+    year = _op.take(inexpr, _op.const([1]), axis=1)
+
+    ordinal_values = _op.split(_op.subtract(data, _op.const(mins)), len(cols_without_year), axis=1)
+
+    sin_values, cos_values = _cyclic_transform(data, _op.const(mins), _op.const(maxs), dtype)
+    sin_values = _op.split(sin_values, len(cols_without_year), axis=1)
+    cos_values = _op.split(cos_values, len(cols_without_year), axis=1)
+
+    out, i = [], 0
+    for col in cols:
+        if col == 1:
+            out.append(year)
+        else:
+            if op.mode == "ordinal":
+                out.append(ordinal_values[i])
+            elif op.mode == "cyclic":
+                out.append(sin_values[i])
+                out.append(cos_values[i])
+            i += 1
+
+    ret = _op.concatenate(out, axis=1)
+
+    return ret
+
+
+>>>>>>> ce987f574... Add Support For DateTimeVectorizer's Ordinal/Cyclic Transform (#188)
 _convert_map = {
     "ColumnTransformer": {"transform": _ColumnTransformer},
     "SimpleImputer": {"transform": _SimpleImputer},
@@ -361,6 +583,7 @@ _convert_map = {
     "RobustMissingIndicator": {"transform": _RobustMissingIndicator},
     "RobustPCA": {"transform": _RobustPCA},
     "FeatureUnion": {"transform": _FeatureUnion},
+    "DateTimeVectorizer": {"transform": _DateTimeVectorizer},
     "Pipeline": {"transform": _Pipeline},
 }
 
