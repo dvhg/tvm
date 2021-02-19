@@ -145,11 +145,13 @@ def _ColumnTransformer(op, inexpr, dshape, dtype, func_name, columns=None):
     Applies transformers to columns of an array
     """
     out = []
-    for _, pipe, cols in op.transformers_:
+    for proc_name, pipe, cols in op.transformers_:
         if pipe == "drop":
             continue
         mod = pipe.steps[0][1]
         op_type = column_transformer_op_types[type(mod).__name__]
+        if proc_name == "datetime_processing":
+            cols = list(range(dshape[-1] - 7, dshape[-1]))
         out.append(sklearn_op_to_relay(pipe, inexpr[op_type], dshape, dtype, func_name, cols))
 
     return _op.concatenate(out, axis=1)
@@ -524,6 +526,10 @@ def _DateTimeVectorizer(op, inexpr, dshape, dtype, columns=None):
     Converts array-like data with datetime.datetime or strings describing datetime objects into
     numeric features
     """
+    if columns:
+        column_indices = _op.const(columns)
+        inexpr = _op.take(inexpr, indices=column_indices, axis=1)
+
     mins = []
     maxs = []
     cols = []
