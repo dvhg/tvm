@@ -111,7 +111,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     }
   }
 
-#ifdef TVM_GRAPH_EXECUTOR_TENSORRT
+#ifdef TVM_GRAPH_RUNTIME_TENSORRT
   /*! \brief Destroy engines and contexts. */
   void DestroyEngines() {
     for (auto& it : trt_engine_cache_) {
@@ -350,7 +350,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       if (shape[0] > device_buffers_[binding_index]->shape[0]) {
         // Buffer is too small. Need to allocate bigger buffer.
         device_buffers_[binding_index] =
-            runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
+            runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLGPU, 0});
       } else if (shape[0] < device_buffers_[binding_index]->shape[0]) {
         // Buffer is too large. Create view.
         return device_buffers_[binding_index].CreateView(shape, data_entry_[entry_id]->dtype);
@@ -358,7 +358,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     } else {
       // Buffer not initialized yet.
       device_buffers_[binding_index] =
-          runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLCUDA, 0});
+          runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLGPU, 0});
     }
     return device_buffers_.at(binding_index);
   }
