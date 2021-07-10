@@ -83,6 +83,7 @@ tvm_option(USE_TENSORRT_CODEGEN "Build with TensorRT Codegen support" OFF)
 tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
 tvm_option(USE_RUST_EXT "Build with Rust based compiler extensions, STATIC, DYNAMIC, or OFF" OFF)
 tvm_option(USE_VITIS_AI "Build with VITIS-AI Codegen support" OFF)
+tvm_option(USE_MLAS "Build with MLAS library" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -150,6 +151,7 @@ else(MSVC)
     string(REGEX REPLACE "\n" "" TF_COMPILE_FLAGS "${TF_COMPILE_FLAGS}")
     message("Use TensorFlow Compile flags=\"${TF_COMPILE_FLAGS}\"")
     set(CMAKE_CXX_FLAGS "${TF_COMPILE_FLAGS} ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CUDA_FLAGS "${TF_COMPILE_FLAGS} ${CMAKE_CUDA_FLAGS}")
   endif(USE_TF_COMPILE_FLAGS)
 
   set(WARNING_FLAG -Wall)
@@ -378,6 +380,7 @@ include(cmake/modules/contrib/Verilator.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/RustExt.cmake)
+include(cmake/modules/contrib/MLAS.cmake)
 
 include(CheckCXXCompilerFlag)
 if(NOT MSVC)

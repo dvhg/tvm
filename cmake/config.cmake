@@ -277,3 +277,6 @@ set(USE_HEXAGON_SDK /path/to/sdk)
 
 # Whether to use ONNX codegen
 set(USE_TARGET_ONNX OFF)
+
+# Whether to enable MLAS library that provides sgemm pre-packing optimization
+set(USE_MLAS OFF)
