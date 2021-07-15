@@ -177,7 +177,7 @@ def check_dynamism(args, op_name):
     """
     for arg in args:
         if isinstance(arg, (Call, Var, Constant, TupleGetItem)):
-            if op_name not in ["nn.conv2d", "nn.conv2d_transpose"] and not get_tensorrt_use_implicit_batch_mode():
+            if op_name not in ["nn.conv2d", "nn.conv2d_transpose", "nn.dense"] and not get_tensorrt_use_implicit_batch_mode():
                 # Explicit batch mode doesn't support any dynamic shapes yet, except for conv2d
                 for dim_shape in arg.checked_type.shape:
                     if isinstance(dim_shape, tvm.tir.expr.Any):
